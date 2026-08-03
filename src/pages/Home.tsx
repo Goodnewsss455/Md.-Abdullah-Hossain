@@ -4,14 +4,59 @@ import { Link } from 'react-router-dom';
 import Lottie from 'lottie-react';
 import { ArrowRight, CheckCircle2, Sparkles, Star, Plus, Minus, Zap, Shield, Target, Rocket, Info, Camera, Layout, Code, Mail, Globe } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function Home() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [pricingType, setPricingType] = useState<'monthly' | 'project'>('monthly');
   const [serviceIndex, setServiceIndex] = useState(0);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [pricingOverrides, setPricingOverrides] = useState<any>({});
+  const [settings, setSettings] = useState<any>(null);
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+  const [formStatus, setFormStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const lottieRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Listen to settings
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) setSettings(doc.data());
+    });
+
+    // Listen to pricing overrides
+    const unsubPricing = onSnapshot(collection(db, 'pricing'), (snapshot) => {
+      const overrides: any = {};
+      snapshot.docs.forEach(doc => {
+        overrides[doc.id] = doc.data();
+      });
+      setPricingOverrides(overrides);
+    });
+
+    return () => {
+      unsubSettings();
+      unsubPricing();
+    };
+  }, []);
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormStatus('submitting');
+    try {
+      await addDoc(collection(db, 'messages'), {
+        ...contactForm,
+        createdAt: serverTimestamp(),
+        status: 'new'
+      });
+      setFormStatus('success');
+      setContactForm({ name: '', email: '', message: '' });
+      setTimeout(() => setFormStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setFormStatus('error');
+    }
+  };
 
   const services = [
     "WordPress Malware Removal",
@@ -108,6 +153,28 @@ export default function Home() {
     { q: 'Can you fix a hacked WordPress site?', a: 'Absolutely. We specialize in malware removal and security hardening to get your site back online safely.' },
     { q: 'Is your development SEO-friendly?', a: 'Yes, all our websites are built with SEO best practices in mind, including clean code and fast loading speeds.' },
   ];
+
+  const handleCheckout = (service: any) => {
+    const override = pricingOverrides[service.id] || {};
+    const productCode = override.checkoutCode || service.checkoutCode || 'DEFAULT_PROD';
+    
+    let merchantId = import.meta.env.VITE_2CHECKOUT_MERCHANT_ID || 'YOUR_MERCHANT_ID';
+    let gatewayUrl = `https://secure.2checkout.com/checkout/buy?merchant=${merchantId}&tpl=default&prod=${productCode}&qty=1`;
+
+    // Check for dynamic gateway settings
+    if (settings?.paymentGateways?.checkout2?.enabled) {
+      merchantId = settings.paymentGateways.checkout2.merchantId || merchantId;
+      gatewayUrl = `https://secure.2checkout.com/checkout/buy?merchant=${merchantId}&tpl=default&prod=${productCode}&qty=1`;
+    } else if (settings?.paymentGateways?.stripe?.enabled) {
+      // Placeholder for Stripe
+      alert('Stripe checkout is enabled but not fully implemented. Using 2Checkout fallback.');
+    } else if (settings?.paymentGateways?.paypal?.enabled) {
+      // Placeholder for PayPal
+      alert('PayPal checkout is enabled but not fully implemented. Using 2Checkout fallback.');
+    }
+    
+    window.location.href = gatewayUrl;
+  };
 
   return (
     <div className="overflow-hidden">
@@ -621,7 +688,9 @@ export default function Home() {
                     <div className="flex items-baseline justify-end gap-1">
                       <span className="text-gray-400 text-lg font-bold">$</span>
                       <span className="text-4xl font-black">
-                        {pricingType === 'monthly' ? service.monthlyPrice : service.perProjectPrice}
+                        {pricingType === 'monthly' 
+                          ? (pricingOverrides[service.id]?.monthlyPrice || service.monthlyPrice) 
+                          : (pricingOverrides[service.id]?.perProjectPrice || service.perProjectPrice)}
                       </span>
                     </div>
                     <span className="text-gray-400 text-xs font-bold uppercase tracking-widest block mt-1">
@@ -644,7 +713,10 @@ export default function Home() {
                   ))}
                 </div>
 
-                <button className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-orange-500 transition-all active:scale-95">
+                <button 
+                  onClick={() => handleCheckout(service)}
+                  className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-orange-500 transition-all active:scale-95"
+                >
                   Subscribe Now
                 </button>
               </motion.div>

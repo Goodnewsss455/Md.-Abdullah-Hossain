@@ -1,10 +1,49 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { CheckCircle2, Zap, Sparkles, Shield, Rocket } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { collection, onSnapshot, doc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useNavigate } from 'react-router-dom';
+import PaymentModal from '../components/PaymentModal';
 
 export default function Pricing() {
   const [pricingType, setPricingType] = useState<'monthly' | 'project'>('monthly');
+  const [pricingOverrides, setPricingOverrides] = useState<any>({});
+  const [settings, setSettings] = useState<any>(null);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Listen to settings
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) setSettings(doc.data());
+    });
+
+    // Listen to pricing overrides
+    const unsubPricing = onSnapshot(collection(db, 'pricing'), (snapshot) => {
+      const overrides: any = {};
+      snapshot.docs.forEach(doc => {
+        overrides[doc.id] = doc.data();
+      });
+      setPricingOverrides(overrides);
+    });
+
+    return () => {
+      unsubSettings();
+      unsubPricing();
+    };
+  }, []);
+
+  const handleGetStarted = (plan: any) => {
+    const price = pricingType === 'monthly' 
+      ? (pricingOverrides[plan.name.toLowerCase()]?.monthlyPrice || plan.monthly) 
+      : (pricingOverrides[plan.name.toLowerCase()]?.perProjectPrice || plan.project);
+    
+    setSelectedPlan({ ...plan, currentPrice: price });
+    setIsPaymentOpen(true);
+  };
 
   const plans = [
     {
@@ -105,7 +144,11 @@ export default function Pricing() {
 
                 <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 mb-8">
-                  <span className="text-4xl font-bold">${pricingType === 'monthly' ? plan.monthly : plan.project}</span>
+                  <span className="text-4xl font-bold">
+                    ${pricingType === 'monthly' 
+                      ? (pricingOverrides[plan.name.toLowerCase()]?.monthlyPrice || plan.monthly) 
+                      : (pricingOverrides[plan.name.toLowerCase()]?.perProjectPrice || plan.project)}
+                  </span>
                   <span className={cn("text-sm font-medium", plan.popular ? "text-gray-400" : "text-gray-500")}>
                     /{pricingType === 'monthly' ? 'mo' : 'project'}
                   </span>
@@ -120,10 +163,13 @@ export default function Pricing() {
                   ))}
                 </ul>
 
-                <button className={cn(
-                  "w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-95",
-                  plan.popular ? "bg-orange-500 text-white hover:bg-orange-600" : "bg-black text-white hover:bg-gray-800"
-                )}>
+                <button 
+                  onClick={() => handleGetStarted(plan)}
+                  className={cn(
+                    "w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-95",
+                    plan.popular ? "bg-orange-500 text-white hover:bg-orange-600" : "bg-black text-white hover:bg-gray-800"
+                  )}
+                >
                   Get Started
                 </button>
               </motion.div>
@@ -131,6 +177,20 @@ export default function Pricing() {
           </div>
         </div>
       </section>
+
+      {selectedPlan && (
+        <PaymentModal 
+          isOpen={isPaymentOpen}
+          onClose={() => setIsPaymentOpen(false)}
+          planName={selectedPlan.name}
+          price={selectedPlan.currentPrice}
+          onSuccess={() => {
+            setIsPaymentOpen(false);
+            alert('Payment Successful! Thank you for choosing DevCraft.');
+            navigate('/contact');
+          }}
+        />
+      )}
     </div>
   );
 }

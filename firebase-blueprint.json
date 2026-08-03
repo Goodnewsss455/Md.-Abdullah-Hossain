@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "settings": {
+      "title": "App Settings",
+      "description": "Global application settings including payment gateways.",
+      "type": "object",
+      "properties": {
+        "paymentGateways": {
+          "type": "object",
+          "properties": {
+            "stripe": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "publicKey": { "type": "string" }
+              }
+            },
+            "paypal": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "clientId": { "type": "string" }
+              }
+            },
+            "checkout2": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "merchantId": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "servicePricing": {
+      "title": "Service Pricing",
+      "description": "Pricing details for individual services.",
+      "type": "object",
+      "properties": {
+        "serviceId": { "type": "string" },
+        "monthlyPrice": { "type": "string" },
+        "perProjectPrice": { "type": "string" },
+        "checkoutCode": { "type": "string" }
+      },
+      "required": ["serviceId"]
+    },
+    "contactMessage": {
+      "title": "Contact Message",
+      "description": "Messages received from the contact form.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["new", "read", "replied"] }
+      },
+      "required": ["name", "email", "message", "createdAt"]
+    },
+    "user": {
+      "title": "User Profile",
+      "description": "User profile and role information.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/global": {
+      "schema": "settings",
+      "description": "Global application configuration."
+    },
+    "/pricing/{serviceId}": {
+      "schema": "servicePricing",
+      "description": "Pricing overrides for services."
+    },
+    "/messages/{messageId}": {
+      "schema": "contactMessage",
+      "description": "Stored contact form submissions."
+    },
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User account data."
+    }
+  }
+}

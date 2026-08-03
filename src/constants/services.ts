@@ -27,6 +27,7 @@ export interface Service {
   color: string;
   monthlyPrice: string;
   perProjectPrice: string;
+  checkoutCode?: string;
 }
 
 export const SERVICES: Service[] = [
@@ -48,7 +49,8 @@ export const SERVICES: Service[] = [
     ],
     color: 'blue',
     monthlyPrice: '249',
-    perProjectPrice: '499'
+    perProjectPrice: '499',
+    checkoutCode: 'WP_DEV_01'
   },
   {
     id: 'malware-removal',
@@ -68,7 +70,8 @@ export const SERVICES: Service[] = [
     ],
     color: 'red',
     monthlyPrice: '99',
-    perProjectPrice: '199'
+    perProjectPrice: '199',
+    checkoutCode: 'MALWARE_01'
   },
   {
     id: 'bug-fix',
@@ -88,7 +91,8 @@ export const SERVICES: Service[] = [
     ],
     color: 'orange',
     monthlyPrice: '39',
-    perProjectPrice: '79'
+    perProjectPrice: '79',
+    checkoutCode: 'BUG_FIX_01'
   },
   {
     id: 'speed-optimization',
@@ -108,7 +112,8 @@ export const SERVICES: Service[] = [
     ],
     color: 'yellow',
     monthlyPrice: '149',
-    perProjectPrice: '299'
+    perProjectPrice: '299',
+    checkoutCode: 'SPEED_01'
   },
   {
     id: 'frontend-dev',
@@ -128,7 +133,8 @@ export const SERVICES: Service[] = [
     ],
     color: 'purple',
     monthlyPrice: '399',
-    perProjectPrice: '799'
+    perProjectPrice: '799',
+    checkoutCode: 'FRONTEND_01'
   },
   {
     id: 'ai-automation',
@@ -148,6 +154,7 @@ export const SERVICES: Service[] = [
     ],
     color: 'emerald',
     monthlyPrice: '299',
-    perProjectPrice: '599'
+    perProjectPrice: '599',
+    checkoutCode: 'AI_AUTO_01'
   }
 ];

@@ -65,9 +65,14 @@ export default function Footer() {
       </div>
 
       <div className="max-w-7xl mx-auto pt-8 border-t border-gray-200 flex flex-col md:row items-center justify-between gap-4">
-        <p className="text-gray-400 text-xs text-center">
-          © {new Date().getFullYear()} DevCraft Portfolio. All rights reserved.
-        </p>
+        <div className="flex items-center gap-6">
+          <p className="text-gray-400 text-xs">
+            © {new Date().getFullYear()} DevCraft Portfolio. All rights reserved.
+          </p>
+          <Link to="/admin" className="text-gray-300 hover:text-orange-500 text-xs font-bold transition-colors">
+            Admin Portal
+          </Link>
+        </div>
         <p className="text-gray-400 text-xs text-center">
           Designed with ❤️ for modern web experiences.
         </p>

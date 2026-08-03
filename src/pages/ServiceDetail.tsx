@@ -1,10 +1,13 @@
-import { useParams, Link, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { SERVICES } from '../constants/services';
 import Lottie from 'lottie-react';
 import { ArrowLeft, CheckCircle2, MessageSquare, ShieldCheck, Zap, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { collection, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import PaymentModal from '../components/PaymentModal';
 
 const LottieIcon = ({ url, className, fallback: FallbackIcon }: { url: string, className?: string, fallback?: any }) => {
   const [animationData, setAnimationData] = useState<any>(null);
@@ -36,10 +39,62 @@ const LottieIcon = ({ url, className, fallback: FallbackIcon }: { url: string, c
 export default function ServiceDetail() {
   const { id } = useParams<{ id: string }>();
   const service = SERVICES.find((s) => s.id === id);
+  const navigate = useNavigate();
+  const [pricingOverrides, setPricingOverrides] = useState<any>({});
+  const [settings, setSettings] = useState<any>(null);
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+  const [formStatus, setFormStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+
+  useEffect(() => {
+    if (!service) return;
+    
+    // Listen to settings
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) setSettings(doc.data());
+    });
+
+    // Listen to pricing overrides
+    const unsubPricing = onSnapshot(collection(db, 'pricing'), (snapshot) => {
+      const overrides: any = {};
+      snapshot.docs.forEach(doc => {
+        overrides[doc.id] = doc.data();
+      });
+      setPricingOverrides(overrides);
+    });
+
+    return () => {
+      unsubSettings();
+      unsubPricing();
+    };
+  }, [service]);
 
   if (!service) {
     return <Navigate to="/" replace />;
   }
+
+  const handleCheckout = () => {
+    setIsPaymentOpen(true);
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormStatus('submitting');
+    try {
+      await addDoc(collection(db, 'messages'), {
+        ...contactForm,
+        subject: `Inquiry: ${service.title}`,
+        createdAt: serverTimestamp(),
+        status: 'new'
+      });
+      setFormStatus('success');
+      setContactForm({ name: '', email: '', message: '' });
+      setTimeout(() => setFormStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setFormStatus('error');
+    }
+  };
 
   const colorMap: Record<string, { bg: string, text: string, border: string, fill: string, glow: string }> = {
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100', fill: 'bg-blue-500', glow: 'shadow-blue-500/20' },
@@ -97,12 +152,18 @@ export default function ServiceDetail() {
                 {service.fullDescription}
               </p>
               <div className="flex flex-wrap gap-4">
-                <button className="bg-[#ff6b6b] text-white px-10 py-5 rounded-2xl font-bold hover:opacity-90 transition-all active:scale-95 shadow-2xl shadow-red-500/40 relative overflow-hidden group">
+                <button 
+                  onClick={handleCheckout}
+                  className="bg-[#ff6b6b] text-white px-10 py-5 rounded-2xl font-bold hover:opacity-90 transition-all active:scale-95 shadow-2xl shadow-red-500/40 relative overflow-hidden group"
+                >
                   <span className="relative z-10">Get Started Now</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                 </button>
-                <button className="bg-white/5 backdrop-blur-md border border-white/10 text-white px-10 py-5 rounded-2xl font-bold hover:bg-white/10 transition-all active:scale-95">
-                  View Portfolio
+                <button 
+                  onClick={() => navigate('/services')}
+                  className="bg-white/5 backdrop-blur-md border border-white/10 text-white px-10 py-5 rounded-2xl font-bold hover:bg-white/10 transition-all active:scale-95"
+                >
+                  View All Services
                 </button>
               </div>
             </motion.div>
@@ -249,28 +310,76 @@ export default function ServiceDetail() {
               <p className="text-gray-500 text-lg">Tell us about your project and we'll provide a custom strategy.</p>
             </div>
 
-            <form className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-8" onSubmit={handleContactSubmit}>
               <div className="space-y-3">
-                <label className="text-sm font-bold text-gray-700 ml-2">Full Name</label>
-                <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-8 py-5 focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all" placeholder="John Doe" />
+                <label className="text-sm font-bold text-gray-900 ml-2">Full Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={contactForm.name}
+                  onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                  className="w-full bg-white border-2 border-gray-100 rounded-2xl px-8 py-5 focus:outline-none focus:ring-0 focus:border-orange-500 transition-all shadow-sm hover:border-gray-200" 
+                  placeholder="John Doe" 
+                />
               </div>
               <div className="space-y-3">
-                <label className="text-sm font-bold text-gray-700 ml-2">Email Address</label>
-                <input type="email" className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-8 py-5 focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all" placeholder="john@example.com" />
+                <label className="text-sm font-bold text-gray-900 ml-2">Email Address</label>
+                <input 
+                  type="email" 
+                  required
+                  value={contactForm.email}
+                  onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                  className="w-full bg-white border-2 border-gray-100 rounded-2xl px-8 py-5 focus:outline-none focus:ring-0 focus:border-orange-500 transition-all shadow-sm hover:border-gray-200" 
+                  placeholder="john@example.com" 
+                />
               </div>
               <div className="md:col-span-2 space-y-3">
-                <label className="text-sm font-bold text-gray-700 ml-2">Project Details</label>
-                <textarea rows={5} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-8 py-5 focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all" placeholder="Tell us about your project goals..." />
+                <label className="text-sm font-bold text-gray-900 ml-2">Project Details</label>
+                <textarea 
+                  rows={5} 
+                  required
+                  value={contactForm.message}
+                  onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
+                  className="w-full bg-white border-2 border-gray-100 rounded-2xl px-8 py-5 focus:outline-none focus:ring-0 focus:border-orange-500 transition-all shadow-sm hover:border-gray-200 resize-none" 
+                  placeholder="Tell us about your project goals..." 
+                />
               </div>
               <div className="md:col-span-2">
-                <button type="submit" className="w-full bg-[#ff6b6b] text-white py-6 rounded-2xl font-bold text-xl hover:opacity-90 transition-all active:scale-[0.98] shadow-2xl shadow-red-500/20">
-                  Send Message
+                {formStatus === 'success' && (
+                  <div className="mb-6 p-4 bg-green-50 text-green-600 rounded-2xl text-center font-bold">
+                    Message sent successfully!
+                  </div>
+                )}
+                {formStatus === 'error' && (
+                  <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-center font-bold">
+                    Error sending message. Please try again.
+                  </div>
+                )}
+                <button 
+                  type="submit" 
+                  disabled={formStatus === 'submitting'}
+                  className="w-full bg-[#ff6b6b] text-white py-6 rounded-2xl font-bold text-xl hover:opacity-90 transition-all active:scale-[0.98] shadow-2xl shadow-red-500/20 group relative overflow-hidden disabled:opacity-50"
+                >
+                  <span className="relative z-10">{formStatus === 'submitting' ? 'Sending...' : 'Send Message'}</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                 </button>
               </div>
             </form>
           </div>
         </div>
       </div>
+
+      <PaymentModal 
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
+        planName={service.title}
+        price={pricingOverrides[service.id]?.monthlyPrice || 'Custom'}
+        onSuccess={() => {
+          setIsPaymentOpen(false);
+          alert('Payment Successful! Our team will contact you shortly.');
+          navigate('/contact');
+        }}
+      />
     </div>
   );
 }

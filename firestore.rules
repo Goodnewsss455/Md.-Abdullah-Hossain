@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: settings
+    // Document ID: global
+    // Fields:
+    //   - paymentGateways: map (stripe, paypal, checkout2)
+    //
+    // Collection: pricing
+    // Document ID: {serviceId}
+    // Fields:
+    //   - monthlyPrice: string
+    //   - perProjectPrice: string
+    //   - checkoutCode: string
+    //
+    // Collection: messages
+    // Document ID: {messageId}
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - message: string (required)
+    //   - createdAt: timestamp (required)
+    //   - status: string (enum: new, read, replied)
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string
+    //   - role: string (admin, user)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "mdabdullahhossain3467@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['name', 'email', 'message', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 5000 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Settings collection
+    match /settings/{docId} {
+      allow read: if true; // Publicly readable for app config
+      allow write: if isAdmin();
+    }
+
+    // Pricing collection
+    match /pricing/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Messages collection
+    match /messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if isValidMessage(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
